@@ -23,82 +23,79 @@
 
  */
 
+#include <string.h>
+#include <inttypes.h>
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <OLED_128x64.h>
 #include <Wire.h>
 
-// Update these with values suitable for your network.
-
-const char* ssid = "...";
-const char* password = "...";
-const char* mqtt_server = "hostname.domain";
+#include "credentials.h"
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
-char msg[50];
 int value = 0;
+char msg[50] = { '\0' };
+char mqtt_topic[50] = { '\0' };
+char mqtt_msg[50] = { '\0' };
 
-void setup_wifi();
-void callback(char* topic, byte* payload, unsigned int length);
+void setup(void);
+void loop(void);
+void reconnect(void);
+void draw_screen(void);
+void setup_wifi(void);
+void mqtt_callback(char* topic, byte* payload, unsigned int length);
 
-void setup()
+void setup(void)
 {
-  /** WiFi, MQTT, etc. **/
-  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   Serial.begin(115200);
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
 
-  /** DISPLAY **/
+  setup_wifi();
+
+  client.setServer(MQTT_BROKER, 1883);
+  client.setCallback(mqtt_callback);
+  // subscription to MQTT topics is performed in reconnect()
 
   Wire.begin(2 /* sda */, 4 /* scl */);
-
   oled_setup();
-
-  print_text(1, " OLIMEX");
-  print_smtext(3, (unsigned char *) "     Hello World!", 1);
-  print_smtext(5, (unsigned char *) "        Sensei will", 1);
-  print_smtext(6, (unsigned char *) "        teach you the", 1);
-  print_smtext(7, (unsigned char *) "        Olimexino way", 1);
-
-  drawLine(1, 25, 128, 25);
-
-  drawEllipse(20, 70, 5, 20);
-  drawLine(23, 52, 37, 60);
-  drawLine(17, 52, 10, 64);
-
-  drawCircle(20, 40, 10);
-  drawLine(15, 38, 18, 38);
-  drawLine(22, 38, 25, 38);
-  drawLine(20, 40, 21, 42);
-  drawLine(15, 43, 16, 45);
-  drawLine(17, 46, 20, 47);
-
-  drawTriangle(5, 35, 20, 28, 35, 35);
-
-  drawRectangle(37, 55, 40, 65);
-  drawSolidRectangle(37, 54, 40, 30);
-
-  //invert_screen();
-  //normal_screen();
-
-  oled_update();
-  delay(200);
 }
 
-void setup_wifi()
+void draw_screen(void)
+{
+  static uint8_t x = 6;
+  static uint8_t delta = 4;
+
+  clear_screen();
+  print_text(1, "MQTT");
+
+  drawLine(1, 17, 128, 17);
+
+  print_smtext(4, mqtt_topic, 1);
+  print_smtext(6, mqtt_msg, 1);
+
+  drawCircle(x, 59, 5);
+  x += delta;
+  if (x > 123 || x < 5)
+  {
+    delta *= -1;
+    x += 2 * delta;
+  }
+
+  oled_update();
+}
+
+void setup_wifi(void)
 {
 
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
   Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.println(SSID);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(SSID, PASS);
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -112,7 +109,7 @@ void setup_wifi()
   Serial.println(WiFi.localIP());
 }
 
-void callback(char* topic, byte* payload, unsigned int length)
+void mqtt_callback(char* topic, byte* payload, unsigned int length)
 {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -123,18 +120,9 @@ void callback(char* topic, byte* payload, unsigned int length)
   }
   Serial.println();
 
-  // Switch on the LED if an 1 was received as first character
-  if ((char) payload[0] == '1')
-  {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is acive low on the ESP-01)
-  }
-  else
-  {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
-
+  strncpy(mqtt_topic, (const char*)topic, sizeof(mqtt_topic));
+  strncpy(mqtt_msg, (const char*)payload, length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg));
+  mqtt_msg[length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg) - 1] = '\0';
 }
 
 void reconnect()
@@ -162,7 +150,7 @@ void reconnect()
     }
   }
 }
-void loop()
+void loop(void)
 {
 
   if (!client.connected())
@@ -175,10 +163,13 @@ void loop()
   if (now - lastMsg > 2000)
   {
     lastMsg = now;
+
     ++value;
     sprintf(msg, "hello world #%ld", value);
     Serial.print("Publish message: ");
     Serial.println(msg);
     client.publish("outTopic", msg);
   }
+
+  draw_screen();
 }
