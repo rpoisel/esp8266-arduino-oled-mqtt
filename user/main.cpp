@@ -28,11 +28,12 @@
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-
 #include <OLED_128x64.h>
 #include <FreeSansBold9pt7b.h>
 
 #include "credentials.h"
+
+#define BUILTIN_RELAY 5
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -55,6 +56,8 @@ void setup(void)
   Serial.begin(115200);
 
   setup_wifi();
+
+  pinMode(BUILTIN_RELAY, OUTPUT);
 
   client.setServer(MQTT_BROKER, 1883);
   client.setCallback(mqtt_callback);
@@ -120,6 +123,7 @@ void setup_wifi(void)
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length)
 {
+  /* Serial handling */
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
@@ -129,14 +133,26 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   }
   Serial.println();
 
+  /* Display data handling */
   strncpy(mqtt_topic, (const char*) topic, sizeof(mqtt_topic));
   strncpy(mqtt_msg, (const char*) payload, length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg));
   mqtt_msg[length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg) - 1] = '\0';
+
+  /* I/O handling */
+  if (mqtt_msg[0] == '1')
+  {
+    digitalWrite(BUILTIN_RELAY, HIGH);   // Turn the LED on (Note that LOW is the voltage level
+    // but actually the LED is on; this is because
+    // it is acive low on the ESP-01)
+  }
+  else if (mqtt_msg[0] == '0')
+  {
+    digitalWrite(BUILTIN_RELAY, LOW);  // Turn the LED off by making the voltage HIGH
+  }
 }
 
 void reconnect()
 {
-  // Loop until we're reconnected
   while (!client.connected())
   {
     Serial.print("Attempting MQTT connection...");
