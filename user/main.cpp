@@ -28,7 +28,6 @@
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include <Wire.h>
 
 #include <OLED_128x64.h>
 #include <FreeSansBold9pt7b.h>
@@ -61,8 +60,7 @@ void setup(void)
   client.setCallback(mqtt_callback);
   // subscription to MQTT topics is performed in reconnect()
 
-  Wire.begin(2 /* sda */, 4 /* scl */);
-  display.begin();
+  display.begin(2 /* sda */, 4 /* scl */);
 }
 
 void draw_screen(void)
