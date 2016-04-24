@@ -38,9 +38,6 @@
 WiFiClient espClient;
 PubSubClient client(espClient);
 Olimex_128x64 display;
-long lastMsg = 0;
-int value = 0;
-char msg[50] = { '\0' };
 char mqtt_topic[50] = { '\0' };
 char mqtt_msg[50] = { '\0' };
 
@@ -76,6 +73,8 @@ void draw_screen(void)
   display.setFont(&FreeSansBold9pt7b);
   display.setCursor(1, 15);
   display.print("MQTT");
+  display.setCursor(115, 15);
+  display.print(client.connected() ? "X" : "-");
 
   display.drawLine(1, 20, 128, 20, 0);
 
@@ -153,30 +152,36 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 
 void reconnect()
 {
-  while (!client.connected())
+  static long lastConnect = 0;
+  long now = millis();
+  if (now - lastConnect < 5000)
   {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect("ESP8266Client"))
-    {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
-      // ... and resubscribe
-      client.subscribe("inTopic");
-    }
-    else
-    {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+    return;
+  }
+  lastConnect = now;
+  Serial.print("Attempting MQTT connection...");
+  // Attempt to connect
+  if (client.connect("ESP8266Client"))
+  {
+    Serial.println("connected");
+    // Once connected, publish an announcement...
+    client.publish("outTopic", "hello world");
+    // ... and resubscribe
+    client.subscribe("inTopic");
+  }
+  else
+  {
+    Serial.print("failed, rc=");
+    Serial.print(client.state());
   }
 }
 void loop(void)
 {
+  static long lastMsg = 0;
+  static int value = 0;
+  char msg[50] = { '\0' };
+
+  draw_screen();
 
   if (!client.connected())
   {
@@ -195,6 +200,4 @@ void loop(void)
     Serial.println(msg);
     client.publish("outTopic", msg);
   }
-
-  draw_screen();
 }
