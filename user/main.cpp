@@ -28,13 +28,16 @@
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include <OLED_128x64.h>
 #include <Wire.h>
+
+#include <OLED_128x64.h>
+#include <FreeSansBold9pt7b.h>
 
 #include "credentials.h"
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+Olimex_128x64 display;
 long lastMsg = 0;
 int value = 0;
 char msg[50] = { '\0' };
@@ -59,7 +62,7 @@ void setup(void)
   // subscription to MQTT topics is performed in reconnect()
 
   Wire.begin(2 /* sda */, 4 /* scl */);
-  oled_setup();
+  display.begin();
 }
 
 void draw_screen(void)
@@ -67,15 +70,23 @@ void draw_screen(void)
   static uint8_t x = 6;
   static uint8_t delta = 4;
 
-  clear_screen();
-  print_text(1, "MQTT");
+  display.clear_screen();
 
-  drawLine(1, 17, 128, 17);
+  display.setFont(&FreeSansBold9pt7b);
+  display.setCursor(1, 15);
+  display.print("MQTT");
 
-  print_smtext(4, mqtt_topic, 1);
-  print_smtext(6, mqtt_msg, 1);
+  display.drawLine(1, 20, 128, 20, 0);
 
-  drawCircle(x, 59, 5);
+  display.setFont(0);
+  display.setCursor(1, 30);
+  display.print("Topic: ");
+  display.print(mqtt_topic);
+  display.setCursor(1, 40);
+  display.print("Msg:   ");
+  display.print(mqtt_msg);
+
+  display.drawCircle(x, 59, 5, 0);
   x += delta;
   if (x > 123 || x < 5)
   {
@@ -83,7 +94,7 @@ void draw_screen(void)
     x += 2 * delta;
   }
 
-  oled_update();
+  display.display();
 }
 
 void setup_wifi(void)
@@ -120,8 +131,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   }
   Serial.println();
 
-  strncpy(mqtt_topic, (const char*)topic, sizeof(mqtt_topic));
-  strncpy(mqtt_msg, (const char*)payload, length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg));
+  strncpy(mqtt_topic, (const char*) topic, sizeof(mqtt_topic));
+  strncpy(mqtt_msg, (const char*) payload, length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg));
   mqtt_msg[length < sizeof(mqtt_msg) ? length : sizeof(mqtt_msg) - 1] = '\0';
 }
 
